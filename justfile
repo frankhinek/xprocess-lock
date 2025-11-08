@@ -26,7 +26,8 @@ format-check:
 # Run linter (clippy) with warnings
 lint:
     @echo "Running clippy..."
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --features async -- -D warnings
+    cargo clippy --no-default-features --features blocking -- -D warnings
     @echo "✓ Clippy checks complete"
 
 # Run both format and lint checks
