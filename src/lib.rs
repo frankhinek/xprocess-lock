@@ -95,7 +95,9 @@ enum LockMode {
 }
 
 fn default_base_dir() -> PathBuf {
-    env::var_os("XPROCESS_LOCK_DIR").map(PathBuf::from).unwrap_or_else(|| env::temp_dir().join("xprocess-lock"))
+    env::var_os("XPROCESS_LOCK_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| env::temp_dir().join("xprocess-lock"))
 }
 
 /// Open (create if needed) and lock the file (blocking).
@@ -108,12 +110,12 @@ fn open_locked(path: &Path, mode: LockMode) -> Result<File> {
     let f = open_lock_file(path).context(error::OpenLockFileSnafu { path: path.to_path_buf() })?;
 
     match mode {
-        LockMode::Exclusive => {
-            f.lock().context(error::AcquireLockSnafu { path: path.to_path_buf(), mode: "exclusive" })?
-        }
-        LockMode::Shared => {
-            f.lock_shared().context(error::AcquireLockSnafu { path: path.to_path_buf(), mode: "shared" })?
-        }
+        LockMode::Exclusive => f
+            .lock()
+            .context(error::AcquireLockSnafu { path: path.to_path_buf(), mode: "exclusive" })?,
+        LockMode::Shared => f
+            .lock_shared()
+            .context(error::AcquireLockSnafu { path: path.to_path_buf(), mode: "shared" })?,
     }
     Ok(f)
 }
@@ -123,10 +125,14 @@ async fn open_locked_async(path: PathBuf, mode: LockMode) -> Result<File> {
     use error::JoinBlockingSnafu;
 
     if let Some(dir) = path.parent() {
-        tokio::fs::create_dir_all(dir).await.context(error::CreateDirSnafu { path: dir.to_path_buf() })?;
+        tokio::fs::create_dir_all(dir)
+            .await
+            .context(error::CreateDirSnafu { path: dir.to_path_buf() })?;
     }
     // Run the blocking open+lock sequence off the runtime thread.
-    tokio::task::spawn_blocking(move || open_locked(&path, mode)).await.context(JoinBlockingSnafu)?
+    tokio::task::spawn_blocking(move || open_locked(&path, mode))
+        .await
+        .context(JoinBlockingSnafu)?
 }
 
 fn open_lock_file(path: &Path) -> io::Result<File> {
@@ -139,7 +145,9 @@ fn open_lock_file(path: &Path) -> io::Result<File> {
 }
 
 fn sanitize(s: &str) -> String {
-    s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect()
 }
 
 // ============================ Tests ============================
