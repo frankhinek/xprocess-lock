@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  MSRV: "1.89.0"
+  RUST_BACKTRACE: full
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}
+    needs:
+      - format
+      - lint
+      - msrv
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+          - macos-latest
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v5
+      - run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
+      - uses: moonrepo/setup-rust@v1
+        with: { cache: false, channel: "${{ env.MSRV }}" }
+      - uses: taiki-e/install-action@cargo-nextest
+      - uses: Swatinem/rust-cache@v2
+      - name: Run nextest shard
+        run: |
+          set -euxo pipefail
+          cargo nextest run --features async
+          cargo nextest run --features blocking --no-default-features
+          cargo test --doc --features async
+          cargo test --doc --features blocking --no-default-features
+
+  format:
+    name: Check Formatting
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: moonrepo/setup-rust@v1
+        with: { cache: false, channel: "nightly", components: rustfmt }
+        env: { RUSTUP_TOOLCHAIN: "nightly" }
+      - uses: taiki-e/install-action@taplo-cli
+      - name: Check Rust formatting
+        run: cargo +nightly fmt --all --check
+      - name: Check TOML formatting
+        run: taplo fmt --check
+
+  lint:
+    name: Run Linter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
+      - uses: moonrepo/setup-rust@v1
+        with: { cache: false, channel: "${{ env.MSRV }}", components: clippy }
+      - name: Run Clippy
+        run: cargo clippy --all --all-targets -- --deny warnings
+
+  msrv:
+    name: Check Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
+      - uses: moonrepo/setup-rust@v1
+        with: { cache: false, channel: "${{ env.MSRV }}" }
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@cargo-binstall
+      - name: Install cargo-msrv
+        run: cargo binstall -y cargo-msrv
+      - name: Run cargo-msrv
+        shell: bash
+        run: cargo msrv --output-format json verify 2>&1 | tail -n 1 | jq --exit-status '.result.is_compatible == true'

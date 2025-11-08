@@ -1,0 +1,34 @@
+[package]
+authors = ["Frank Hinek <frankhinek@users.noreply.github.com>"]
+categories = [
+  "concurrency",
+  "asynchronous",
+  "development-tools::testing",
+  "filesystem",
+]
+description = "Cross-platform cross-process file locking using only the Rust standard library."
+edition = "2024"
+keywords = ["lock", "flock", "cross-process", "inter-process", "testing"]
+license = "MIT"
+name = "xprocess-lock"
+repository = "https://github.com/frankhinek/xprocess-lock"
+rust-version = "1.89.0"
+version = "0.1.0"
+
+[features]
+async = ["dep:tokio"]
+blocking = []
+default = ["async"]
+
+[dependencies]
+snafu = "0.8"
+
+# Only needed when feature = "async"
+tokio = { version = "1", default-features = false, features = [
+  "fs",
+  "macros",
+  "rt",
+], optional = true }
+
+[dev-dependencies]
+temp-env = "0.3.6"
